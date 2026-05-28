@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strategy Lab · Backtest Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0b0e;
+    --panel: #14161c;
+    --panel-2: #1c1f27;
+    --line: #262932;
+    --line-soft: #1f222a;
+    --ink: #ece8df;
+    --ink-soft: #b9b6ad;
+    --muted: #7d818c;
+    --accent: #c9a063;       /* refined gold */
+    --accent-dim: #6e5530;
+    --pos: #5fb88a;          /* sage */
+    --neg: #d97961;          /* terracotta */
+    --c1: #c9a063;
+    --c2: #6db5b5;
+    --c3: #b39ddb;
+    --c4: #d97961;
+    --c5: #88c2a1;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,160,99,0.06), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── Header ─── */
+  header {
+    border-bottom: 1px solid var(--line);
+    background: rgba(10,11,14,0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 0.9rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+  }
+  .brand-mark {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 1.45rem;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 96;
+  }
+  .brand-mark em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144;
+  }
+  .brand-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    color: var(--muted);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--line);
+  }
+  .header-actions { display: flex; gap: 0.6rem; align-items: center; }
+  .btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); color: #1a1408; border-color: var(--accent); }
+  .btn.primary:hover { background: #d8b076; color: #1a1408; }
+  .btn.ghost { background: transparent; }
+  .btn svg { width: 14px; height: 14px; }
+
+  /* ─── Layout ─── */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: calc(100vh - 60px);
+  }
+  aside {
+    border-right: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--panel) 0%, #101116 100%);
+    padding: 1.5rem 1.25rem;
+    overflow-y: auto;
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+  }
+  main { padding: 1.5rem; min-width: 0; }
+
+  /* ─── Sidebar ─── */
+  .sec {
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .sec:last-child { border-bottom: none; }
+  .sec-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    color: var(--muted);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 0.85rem;
+  }
+
+  .strat-list { display: flex; flex-direction: column; gap: 0.35rem; }
+  .strat-item {
+    padding: 0.55rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.84rem;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    transition: background 0.15s;
+    overflow: hidden;
+  }
+  .strat-item:hover { background: var(--panel-2); }
+  .strat-item.active { background: var(--panel-2); border-color: var(--accent-dim); }
+  .strat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .strat-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .strat-item.active .strat-name { color: var(--ink); }
+  .strat-remove {
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 0 0.25rem;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .strat-item:hover .strat-remove { opacity: 1; }
+  .strat-remove:hover { color: var(--neg); }
+
+  /* mode picker */
+  .mode-picker { display: flex; flex-direction: column; gap: 0.4rem; }
+  .mode-opt {
+    padding: 0.55rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    transition: all 0.15s;
+  }
+  .mode-opt:hover { border-color: var(--accent-dim); }
+  .mode-opt.active { border-color: var(--accent); background: rgba(201,160,99,0.08); }
+  .mode-opt .ttl { font-weight: 600; color: var(--ink); }
+  .mode-opt .sub { font-size: 0.7rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+  /* controls */
+  .ctrl { margin-bottom: 1rem; }
+  .ctrl-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    margin-bottom: 0.4rem;
+  }
+  .ctrl-label .val {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .ctrl input[type="number"],
+  .ctrl input[type="date"],
+  .ctrl input[type="text"] {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.65rem;
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    transition: border-color 0.15s;
+  }
+  .ctrl input:focus { outline: none; border-color: var(--accent); }
+  .ctrl input[type="date"] { color-scheme: dark; }
+
+  .slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    outline: none;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    transition: transform 0.1s;
+  }
+  .slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .slider::-moz-range-thumb {
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 50%; cursor: pointer; border: 2px solid var(--bg);
+  }
+
+  .quick-dates {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+  }
+  .quick-dates button {
+    padding: 0.35rem 0;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .quick-dates button:hover { border-color: var(--accent); color: var(--accent); }
+  .quick-dates button.active { background: var(--accent); color: #1a1408; border-color: var(--accent); }
+
+  /* ─── Main: upload zone (when empty) ─── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    padding: 3rem;
+  }
+  .drop-zone {
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    padding: 3.5rem 4rem;
+    background: linear-gradient(180deg, var(--panel) 0%, rgba(20,22,28,0.4) 100%);
+    text-align: center;
+    transition: all 0.2s;
+    cursor: pointer;
+    max-width: 580px;
+    width: 100%;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, rgba(201,160,99,0.08), rgba(20,22,28,0.4));
+  }
+  .drop-icon {
+    font-size: 2.5rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144;
+    font-style: italic;
+  }
+  .drop-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.6rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.4rem;
+    font-variation-settings: "opsz" 144;
+  }
+  .drop-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+  .drop-sub {
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.55;
+  }
+  .schema-info {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: left;
+    line-height: 1.7;
+  }
+  .schema-info code {
+    color: var(--accent);
+    background: var(--panel-2);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+  }
+
+  /* ─── Main: dashboard content ─── */
+  .page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .page-title {
+    font-family: 'Fraunces', serif;
+    font-size: 2rem;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+    font-variation-settings: "opsz" 144;
+  }
+  .page-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+  .page-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.74rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* metrics grid */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .metric {
+    background: var(--panel);
+    padding: 1rem 1.1rem;
+    position: relative;
+  }
+  .metric:hover { background: var(--panel-2); }
+  .metric-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.45rem;
+  }
+  .metric-value {
+    font-family: 'Fraunces', serif;
+    font-size: 1.45rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    font-variation-settings: "opsz" 96;
+  }
+  .metric-value.pos { color: var(--pos); }
+  .metric-value.neg { color: var(--neg); }
+  .metric-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+  }
+
+  /* chart panels */
+  .panel-row { display: grid; gap: 1.2rem; margin-bottom: 1.2rem; }
+  .row-1 { grid-template-columns: 1fr; }
+  .row-2 { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 1100px) { .row-2 { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.2rem;
+  }
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .panel-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.05rem;
+    font-weight: 500;
+    font-variation-settings: "opsz" 96;
+  }
+  .panel-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .chart { width: 100%; height: 340px; }
+  .chart.tall { height: 420px; }
+  .chart.small { height: 280px; }
+
+  /* trade table */
+  .table-wrap {
+    overflow-x: auto;
+    max-height: 600px;
+    border-radius: 6px;
+  }
+  table.trades {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px;
+  }
+  table.trades thead th {
+    position: sticky; top: 0;
+    background: var(--panel-2);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.7rem;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  table.trades thead th:hover { color: var(--accent); }
+  table.trades thead th:first-child { text-align: left; }
+  table.trades tbody td {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
+  table.trades tbody td:first-child { text-align: left; color: var(--ink); }
+  table.trades tbody td.pos { color: var(--pos); }
+  table.trades tbody td.neg { color: var(--neg); }
+  table.trades tbody tr:hover td { background: var(--panel-2); }
+
+  /* tabs (custom chart picker) */
+  .tabs {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.8rem;
+  }
+  .tab {
+    padding: 0.35rem 0.75rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--accent); }
+  .tab.active { background: var(--accent); color: #1a1408; border-color: var(--accent); }
+
+  /* toast */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    background: var(--panel);
+    border: 1px solid var(--accent-dim);
+    border-left: 3px solid var(--accent);
+    padding: 0.85rem 1.2rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    transform: translateX(120%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    max-width: 360px;
+  }
+  .toast.show { transform: translateX(0); }
+  .toast.err { border-left-color: var(--neg); border-color: rgba(217,121,97,0.4); }
+
+  /* small helper */
+  .hidden { display: none !important; }
+  .center { text-align: center; }
+  .row-flex { display: flex; gap: 0.4rem; align-items: center; }
+
+  /* footer */
+  footer {
+    margin-top: 2rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.65;
+  }
+
+  /* mobile */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    aside {
+      position: static;
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand-tag { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">Strategy <em>Lab</em></div>
+    <div class="brand-tag">Backtest Analyzer</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn ghost" id="export-btn" title="Export current view as JSON">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Export
+    </button>
+    <button class="btn primary" id="upload-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      Upload CSV
+    </button>
+    <input type="file" id="file-input" accept=".csv" multiple style="display:none">
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside>
+    <div class="sec">
+      <div class="sec-title">Loaded Strategies</div>
+      <div class="strat-list" id="strat-list">
+        <div style="color:var(--muted);font-size:0.78rem;padding:0.5rem 0;">No strategies loaded yet.</div>
+      </div>
+    </div>
+
+    <div class="sec hidden" id="mode-sec">
+      <div class="sec-title">View Mode</div>
+      <div class="mode-picker">
+        <div class="mode-opt active" data-mode="single">
+          <div class="ttl">Single</div>
+          <div class="sub">Analyze one strategy in detail</div>
+        </div>
+        <div class="mode-opt" data-mode="compare">
+          <div class="ttl">Compare</div>
+          <div class="sub">Overlay multiple strategies</div>
+        </div>
+        <div class="mode-opt" data-mode="combined">
+          <div class="ttl">Combined</div>
+          <div class="sub">Treat as one portfolio</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec hidden" id="filter-sec">
+      <div class="sec-title">Filters</div>
+      <div class="ctrl">
+        <div class="ctrl-label"><span>From</span></div>
+        <input type="date" id="date-from">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-label"><span>To</span></div>
+        <input type="date" id="date-to">
+      </div>
+      <div class="quick-dates">
+        <button data-range="all">All</button>
+        <button data-range="ytd">YTD</button>
+        <button data-range="3m">3M</button>
+        <button data-range="1m">1M</button>
+      </div>
+    </div>
+
+    <div class="sec hidden" id="param-sec">
+      <div class="sec-title">Adjust Parameters</div>
+      <div class="ctrl">
+        <div class="ctrl-label">
+          <span>Position size multiplier</span>
+          <span class="val" id="pos-mult-val">1.00×</span>
+        </div>
+        <input type="range" class="slider" id="pos-mult" min="0.1" max="10" step="0.1" value="1">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-label">
+          <span>Starting capital</span>
+          <span class="val" id="capital-val">₹3,00,000</span>
+        </div>
+        <input type="number" id="capital" min="10000" step="10000" value="300000">
+      </div>
+      <button class="btn ghost" id="reset-params" style="width:100%; margin-top:0.5rem; font-size:0.75rem;">Reset to defaults</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- Empty state -->
+    <div id="empty" class="empty-state">
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-icon">⊹</div>
+        <div class="drop-title">Drop your <em>strategy CSVs</em> here</div>
+        <div class="drop-sub">
+          Or click anywhere in this box to browse.<br>
+          Upload one file or many — each becomes a strategy you can analyze, compare, and recompute.
+        </div>
+        <button class="btn primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Choose files
+        </button>
+        <div class="schema-info">
+          <strong style="color:var(--ink-soft)">Expected columns:</strong><br>
+          <code>Date</code> · <code>Total_PnL_Rs</code> · <code>Cumulative_PnL_Rs</code> · <code>Equity_Rs</code> · <code>DD_Rs</code> · <code>DD_pct</code><br>
+          Any extra columns (strikes, prices, breakdowns) are shown in the trade table.
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dash" class="hidden">
+      <div class="page-head">
+        <div>
+          <div class="page-title" id="dash-title">Untitled</div>
+          <div class="page-sub" id="dash-sub">—</div>
+        </div>
+      </div>
+
+      <div class="metrics" id="metrics"></div>
+
+      <div class="panel-row row-1">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Equity Curve</div>
+            <div class="panel-sub">drag the bottom slider to zoom in on a window</div>
+          </div>
+          <div class="chart tall" id="chart-equity"></div>
+        </div>
+      </div>
+
+      <div class="panel-row row-2">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Drawdown</div>
+            <div class="panel-sub">underwater curve, in ₹</div>
+          </div>
+          <div class="chart" id="chart-dd"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Daily P&amp;L</div>
+            <div class="panel-sub">winners green, losers red</div>
+          </div>
+          <div class="chart" id="chart-daily"></div>
+        </div>
+      </div>
+
+      <div class="panel-row row-2">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">P&amp;L Distribution</div>
+            <div class="panel-sub">histogram of daily outcomes</div>
+          </div>
+          <div class="chart small" id="chart-hist"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Monthly Returns</div>
+            <div class="panel-sub">heatmap of monthly P&amp;L (₹)</div>
+          </div>
+          <div class="chart small" id="chart-heat"></div>
+        </div>
+      </div>
+
+      <div class="panel-row row-1" id="breakdown-row" style="display:none;">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">P&amp;L Breakdown</div>
+            <div class="panel-sub">cumulative contribution by component</div>
+          </div>
+          <div class="chart" id="chart-breakdown"></div>
+        </div>
+      </div>
+
+      <div class="panel-row row-1">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Custom Chart</div>
+            <div class="panel-sub">pick any numeric column to visualize</div>
+          </div>
+          <div class="tabs" id="custom-tabs"></div>
+          <div class="chart small" id="chart-custom"></div>
+        </div>
+      </div>
+
+      <div class="panel-row row-1">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Trade Log</div>
+            <div class="panel-sub" id="trade-count">—</div>
+          </div>
+          <div class="table-wrap">
+            <table class="trades" id="trade-table">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        Strategy Lab · Client-side analyzer · Position-size & date filters recompute equity and drawdown from scratch.<br>
+        Data never leaves your browser.
+      </footer>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================================================================
+   STRATEGY LAB · CLIENT-SIDE BACKTEST ANALYZER
+   =================================================================== */
+
+const PALETTE = ['#c9a063', '#6db5b5', '#b39ddb', '#d97961', '#88c2a1', '#e0b878', '#9bc4e2'];
+const REQUIRED_COLS = ['Date', 'Total_PnL_Rs', 'Cumulative_PnL_Rs', 'Equity_Rs'];
+
+const state = {
+  strategies: [],         // { id, name, color, rawRows, rawColumns, baseCapital }
+  activeId: null,
+  mode: 'single',         // single | compare | combined
+  posMult: 1.0,
+  capital: 300000,
+  capitalOverridden: false,
+  dateFrom: null,
+  dateTo: null,
+  customColumn: null,
+  tradeSort: { col: null, dir: 1 },
+};
+
+/* ─── number formatting (Indian style) ─── */
+const fmtINR = (n, opts={}) => {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const { compact = false, decimals = 0, sign = false } = opts;
+  if (compact) {
+    const abs = Math.abs(n);
+    if (abs >= 10000000) return (sign && n>0 ? '+' : '') + '₹' + (n/10000000).toFixed(2) + ' Cr';
+    if (abs >= 100000)   return (sign && n>0 ? '+' : '') + '₹' + (n/100000).toFixed(2) + ' L';
+    if (abs >= 1000)     return (sign && n>0 ? '+' : '') + '₹' + (n/1000).toFixed(1) + 'K';
+  }
+  const s = (sign && n>0 ? '+' : '') + '₹' + Math.round(n*Math.pow(10,decimals))/Math.pow(10,decimals);
+  return s.replace(/\B(?=(\d{2})+\d(?!\d))(?=(\d{3})+\d?(?=,|\.))/g, ',');
+};
+const fmtNum = (n, dec=2) => {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return n.toLocaleString('en-IN', { maximumFractionDigits: dec, minimumFractionDigits: dec === 0 ? 0 : Math.min(2,dec) });
+};
+const fmtPct = (n, dec=2) => isNaN(n) ? '—' : (n>=0?'+':'') + n.toFixed(dec) + '%';
+const fmtDate = (s) => s; // already YYYY-MM-DD strings
+
+/* ─── toast ─── */
+const toast = (msg, kind='ok') => {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (kind==='err'?'err':'') + ' show';
+  clearTimeout(toast._h);
+  toast._h = setTimeout(() => t.classList.remove('show'), 3000);
+};
+
+/* ─── file handling ─── */
+function handleFiles(files) {
+  let okCount = 0, errCount = 0;
+  Array.from(files).forEach(file => {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      errCount++; return;
+    }
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false,   // we'll cast ourselves
+      complete: (results) => {
+        try {
+          ingestStrategy(file.name, results.meta.fields, results.data);
+          okCount++;
+          if (okCount + errCount === files.length) {
+            toast(`Loaded ${okCount} strategy file${okCount>1?'s':''}.`);
+            refreshUI();
+          }
+        } catch (e) {
+          errCount++;
+          toast('Error in ' + file.name + ': ' + e.message, 'err');
+        }
+      }
+    });
+  });
+}
+
+function ingestStrategy(filename, columns, rows) {
+  const missing = REQUIRED_COLS.filter(c => !columns.includes(c));
+  if (missing.length) throw new Error('missing columns: ' + missing.join(', '));
+
+  // normalize numeric columns to numbers (everything except Date, Day, expiries, times)
+  const stringCols = new Set(['Date','Day','Opt_Expiry','Fut_Expiry','Fut_Target_Expiry','Entry_Time','Exit_Time']);
+  const cleanRows = rows.filter(r => r.Date && r.Date.trim()).map(r => {
+    const out = {};
+    for (const col of columns) {
+      const v = r[col];
+      if (stringCols.has(col) || col.includes('Expiry') || col.includes('Time')) {
+        out[col] = v;
+      } else if (col === 'Is_Roll_Day' || col === 'Is_Expiry_Day' || col === 'Is_Entry_Day') {
+        out[col] = String(v).toLowerCase() === 'true';
+      } else if (v === '' || v === undefined || v === null) {
+        out[col] = null;
+      } else {
+        const n = parseFloat(String(v).replace(/,/g,''));
+        out[col] = isNaN(n) ? v : n;
+      }
+    }
+    return out;
+  });
+
+  if (cleanRows.length === 0) throw new Error('no usable rows');
+
+  // infer base capital: Equity[0] - Total_PnL[0]  ≈ starting capital
+  const firstRow = cleanRows[0];
+  const baseCapital = (firstRow.Equity_Rs ?? 300000) - (firstRow.Total_PnL_Rs ?? 0);
+
+  // shorten name
+  let name = filename.replace(/\.csv$/i,'').replace(/_trades$/i,'');
+
+  const id = 's_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+  const color = PALETTE[state.strategies.length % PALETTE.length];
+
+  state.strategies.push({
+    id, name, color,
+    rawRows: cleanRows,
+    rawColumns: columns,
+    baseCapital,
+    filename,
+  });
+
+  // if first strategy, sync capital input to its base
+  if (state.strategies.length === 1) {
+    state.activeId = id;
+    if (!state.capitalOverridden) {
+      state.capital = Math.round(baseCapital);
+      document.getElementById('capital').value = state.capital;
+    }
+    // set date range to full
+    const dates = cleanRows.map(r => r.Date).sort();
+    state.dateFrom = dates[0];
+    state.dateTo = dates[dates.length-1];
+    document.getElementById('date-from').value = state.dateFrom;
+    document.getElementById('date-to').value = state.dateTo;
+    document.getElementById('date-from').min = state.dateFrom;
+    document.getElementById('date-from').max = state.dateTo;
+    document.getElementById('date-to').min = state.dateFrom;
+    document.getElementById('date-to').max = state.dateTo;
+  }
+}
+
+/* ─── derived data (apply filters + multiplier + capital) ─── */
+function deriveSeries(strategy) {
+  const { rawRows } = strategy;
+  const m = state.posMult;
+  const C = state.capital;
+
+  // filter by date
+  const filtered = rawRows.filter(r => {
+    if (state.dateFrom && r.Date < state.dateFrom) return false;
+    if (state.dateTo && r.Date > state.dateTo) return false;
+    return true;
+  });
+
+  // recompute cumulative, equity, drawdown from scratch
+  let cum = 0, peak = C;
+  const out = filtered.map(r => {
+    const pnl = (r.Total_PnL_Rs ?? 0) * m;
+    cum += pnl;
+    const equity = C + cum;
+    if (equity > peak) peak = equity;
+    const dd = equity - peak;       // ≤ 0
+    const ddPct = peak > 0 ? (dd / peak) * 100 : 0;
+    return {
+      ...r,
+      _pnl: pnl,
+      _cum: cum,
+      _equity: equity,
+      _dd: dd,
+      _ddPct: ddPct,
+    };
+  });
+
+  return out;
+}
+
+/* ─── combined portfolio (sum P&L across strategies, by date) ─── */
+function deriveCombined() {
+  if (state.strategies.length === 0) return [];
+  const pnlByDate = new Map();
+  for (const s of state.strategies) {
+    for (const r of s.rawRows) {
+      const cur = pnlByDate.get(r.Date) || 0;
+      pnlByDate.set(r.Date, cur + (r.Total_PnL_Rs ?? 0));
+    }
+  }
+  const sorted = [...pnlByDate.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+  // filter by dates + apply multiplier + capital
+  const m = state.posMult;
+  const C = state.capital;
+  let cum = 0, peak = C;
+  return sorted
+    .filter(([d]) => (!state.dateFrom || d >= state.dateFrom) && (!state.dateTo || d <= state.dateTo))
+    .map(([d, p]) => {
+      const pnl = p * m;
+      cum += pnl;
+      const equity = C + cum;
+      if (equity > peak) peak = equity;
+      return {
+        Date: d,
+        Total_PnL_Rs: p,
+        _pnl: pnl,
+        _cum: cum,
+        _equity: equity,
+        _dd: equity - peak,
+        _ddPct: peak > 0 ? ((equity-peak)/peak)*100 : 0,
+      };
+    });
+}
+
+/* ─── metrics ─── */
+function computeMetrics(series) {
+  if (!series.length) return null;
+  const pnls = series.map(r => r._pnl);
+  const total = pnls.reduce((a,b)=>a+b, 0);
+  const wins = pnls.filter(p => p > 0);
+  const losses = pnls.filter(p => p < 0);
+  const winRate = pnls.length ? (wins.length / pnls.filter(p => p !== 0).length) * 100 : 0;
+  const avgWin = wins.length ? wins.reduce((a,b)=>a+b,0)/wins.length : 0;
+  const avgLoss = losses.length ? losses.reduce((a,b)=>a+b,0)/losses.length : 0;
+  const profitFactor = losses.length ? Math.abs(wins.reduce((a,b)=>a+b,0) / losses.reduce((a,b)=>a+b,0)) : Infinity;
+  const maxDD = Math.min(...series.map(r => r._dd));
+  const maxDDPct = Math.min(...series.map(r => r._ddPct));
+  const bestDay = Math.max(...pnls);
+  const worstDay = Math.min(...pnls);
+
+  // CAGR
+  const startD = new Date(series[0].Date);
+  const endD = new Date(series[series.length-1].Date);
+  const days = Math.max(1, (endD - startD) / (1000*60*60*24));
+  const startEq = state.capital;
+  const endEq = series[series.length-1]._equity;
+  const cagr = days > 30 ? (Math.pow(endEq/startEq, 365/days) - 1) * 100 : null;
+  const totalRet = (endEq/startEq - 1) * 100;
+
+  // Sharpe (daily returns)
+  const dailyRet = [];
+  for (let i = 1; i < series.length; i++) {
+    const prev = series[i-1]._equity;
+    if (prev > 0) dailyRet.push((series[i]._equity - prev) / prev);
+  }
+  const mean = dailyRet.reduce((a,b)=>a+b,0) / Math.max(1,dailyRet.length);
+  const variance = dailyRet.reduce((s,x)=>s+(x-mean)**2,0)/Math.max(1,dailyRet.length-1);
+  const sd = Math.sqrt(variance);
+  const sharpe = sd > 0 ? (mean / sd) * Math.sqrt(252) : 0;
+
+  return {
+    total, winRate, avgWin, avgLoss, profitFactor, maxDD, maxDDPct,
+    bestDay, worstDay, cagr, totalRet, sharpe,
+    nTrades: series.length, nWins: wins.length, nLosses: losses.length,
+  };
+}
+
+/* ─── rendering ─── */
+const PLOTLY_LAYOUT = {
+  paper_bgcolor: 'transparent',
+  plot_bgcolor: 'transparent',
+  font: { family: 'JetBrains Mono, monospace', size: 11, color: '#b9b6ad' },
+  margin: { l: 60, r: 20, t: 10, b: 50 },
+  xaxis: { gridcolor: '#1f222a', linecolor: '#262932', zerolinecolor: '#262932' },
+  yaxis: { gridcolor: '#1f222a', linecolor: '#262932', zerolinecolor: '#262932', tickformat: ',.0f' },
+  hoverlabel: { bgcolor: '#14161c', bordercolor: '#c9a063', font: { family: 'JetBrains Mono, monospace', color: '#ece8df' } },
+  showlegend: false,
+};
+const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
+
+function renderMetrics(series, label='') {
+  const m = computeMetrics(series);
+  const el = document.getElementById('metrics');
+  if (!m) { el.innerHTML = '<div class="metric"><div class="metric-label">no data</div></div>'; return; }
+  const cls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+  const cells = [
+    {label:'Total P&L', val: fmtINR(m.total, {compact:true, sign:true}), sub: `${m.nTrades} trading days`, cls: cls(m.total)},
+    {label:'CAGR', val: m.cagr === null ? '—' : fmtPct(m.cagr), sub: `total ${fmtPct(m.totalRet)}`, cls: m.cagr === null ? '' : cls(m.cagr)},
+    {label:'Max Drawdown', val: fmtINR(m.maxDD, {compact:true}), sub: fmtPct(m.maxDDPct), cls: 'neg'},
+    {label:'Sharpe', val: fmtNum(m.sharpe, 2), sub: 'annualized, daily', cls: cls(m.sharpe)},
+    {label:'Win Rate', val: m.winRate.toFixed(1) + '%', sub: `${m.nWins}W · ${m.nLosses}L`, cls: ''},
+    {label:'Profit Factor', val: isFinite(m.profitFactor) ? fmtNum(m.profitFactor,2) : '∞', sub: 'gains / losses', cls: cls(m.profitFactor - 1)},
+    {label:'Avg Win', val: fmtINR(m.avgWin, {compact:true}), sub: 'per winning day', cls: 'pos'},
+    {label:'Avg Loss', val: fmtINR(m.avgLoss, {compact:true}), sub: 'per losing day', cls: 'neg'},
+    {label:'Best Day', val: fmtINR(m.bestDay, {compact:true}), sub: '', cls: 'pos'},
+    {label:'Worst Day', val: fmtINR(m.worstDay, {compact:true}), sub: '', cls: 'neg'},
+  ];
+  el.innerHTML = cells.map(c => `
+    <div class="metric">
+      <div class="metric-label">${c.label}</div>
+      <div class="metric-value ${c.cls}">${c.val}</div>
+      ${c.sub ? `<div class="metric-sub">${c.sub}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderEquity(seriesList) {
+  // seriesList: [{ name, color, series }]
+  const traces = seriesList.map(({name, color, series}) => ({
+    x: series.map(r => r.Date),
+    y: series.map(r => r._equity),
+    type: 'scatter', mode: 'lines',
+    name, line: { color, width: 2 },
+    fill: seriesList.length === 1 ? 'tozeroy' : 'none',
+    fillcolor: seriesList.length === 1 ? 'rgba(201,160,99,0.06)' : undefined,
+    hovertemplate: '<b>%{x}</b><br>Equity: ₹%{y:,.0f}<extra>'+name+'</extra>',
+  }));
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, rangeslider: { visible: true, thickness: 0.06, bgcolor: '#14161c', bordercolor: '#262932' }, type: 'date' },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: { text: 'Equity (₹)', font: { size: 11, color: '#7d818c' } }, rangemode: 'tozero' },
+    showlegend: seriesList.length > 1,
+    legend: { font: { color: '#ece8df' }, bgcolor: 'rgba(20,22,28,0.8)', bordercolor: '#262932', borderwidth: 1 },
+    margin: { ...PLOTLY_LAYOUT.margin, b: 80 },
+  };
+  Plotly.newPlot('chart-equity', traces, layout, PLOTLY_CONFIG);
+}
+
+function renderDD(seriesList) {
+  const traces = seriesList.map(({name, color, series}) => ({
+    x: series.map(r => r.Date),
+    y: series.map(r => r._dd),
+    type: 'scatter', mode: 'lines',
+    name, line: { color: seriesList.length===1 ? '#d97961' : color, width: 1.5 },
+    fill: seriesList.length === 1 ? 'tozeroy' : 'none',
+    fillcolor: 'rgba(217,121,97,0.15)',
+    hovertemplate: '<b>%{x}</b><br>DD: ₹%{y:,.0f}<extra>'+name+'</extra>',
+  }));
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, type: 'date' },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: { text: 'Drawdown (₹)', font: { size: 11, color: '#7d818c' } }, rangemode: 'tozero' },
+    showlegend: seriesList.length > 1,
+  };
+  Plotly.newPlot('chart-dd', traces, layout, PLOTLY_CONFIG);
+}
+
+function renderDaily(series) {
+  const colors = series.map(r => r._pnl >= 0 ? '#5fb88a' : '#d97961');
+  const trace = {
+    x: series.map(r => r.Date),
+    y: series.map(r => r._pnl),
+    type: 'bar',
+    marker: { color: colors, line: { width: 0 } },
+    hovertemplate: '<b>%{x}</b><br>P&L: ₹%{y:,.0f}<extra></extra>',
+  };
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, type: 'date' },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: { text: 'Daily P&L (₹)', font: { size: 11, color: '#7d818c' } } },
+  };
+  Plotly.newPlot('chart-daily', [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderHist(series) {
+  const pnls = series.map(r => r._pnl);
+  const trace = {
+    x: pnls,
+    type: 'histogram',
+    nbinsx: 30,
+    marker: {
+      color: pnls.map(p => p >= 0 ? 'rgba(95,184,138,0.7)' : 'rgba(217,121,97,0.7)'),
+      line: { color: '#262932', width: 1 },
+    },
+    hovertemplate: '%{y} days<br>range ₹%{x:,.0f}<extra></extra>',
+  };
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, title: { text: 'P&L (₹)', font: { size: 11, color: '#7d818c' } } },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: { text: 'Days', font: { size: 11, color: '#7d818c' } }, tickformat: ',d' },
+    bargap: 0.04,
+  };
+  Plotly.newPlot('chart-hist', [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderHeatmap(series) {
+  // group by Year-Month
+  const monthly = new Map();
+  for (const r of series) {
+    const ym = r.Date.slice(0,7);
+    monthly.set(ym, (monthly.get(ym)||0) + r._pnl);
+  }
+  if (monthly.size === 0) { Plotly.purge('chart-heat'); return; }
+  const entries = [...monthly.entries()].sort();
+  const years = [...new Set(entries.map(([k]) => k.slice(0,4)))].sort();
+  const monthsLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // build z matrix [years][12]
+  const z = years.map(y => Array(12).fill(null));
+  const text = years.map(y => Array(12).fill(''));
+  for (const [k, v] of entries) {
+    const y = years.indexOf(k.slice(0,4));
+    const m = parseInt(k.slice(5,7)) - 1;
+    z[y][m] = v;
+    text[y][m] = fmtINR(v, {compact:true});
+  }
+  const trace = {
+    z, x: monthsLabels, y: years,
+    type: 'heatmap',
+    colorscale: [
+      [0, '#d97961'], [0.5, '#1c1f27'], [1, '#5fb88a']
+    ],
+    zmid: 0,
+    text, texttemplate: '%{text}',
+    textfont: { family: 'JetBrains Mono, monospace', size: 10, color: '#ece8df' },
+    hovertemplate: '<b>%{y}-%{x}</b><br>₹%{z:,.0f}<extra></extra>',
+    showscale: false,
+    xgap: 1, ygap: 1,
+  };
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, side: 'top', gridcolor: 'transparent' },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, gridcolor: 'transparent', autorange: 'reversed' },
+    margin: { l: 50, r: 20, t: 30, b: 10 },
+  };
+  Plotly.newPlot('chart-heat', [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderBreakdown(strategy, series) {
+  // find any *_PnL_Rs columns (excluding Total_PnL_Rs, Cumulative_PnL_Rs)
+  const pnlCols = strategy.rawColumns.filter(c =>
+    c.endsWith('_PnL_Rs') && c !== 'Total_PnL_Rs' && c !== 'Cumulative_PnL_Rs'
+  );
+  if (pnlCols.length < 2) { document.getElementById('breakdown-row').style.display = 'none'; return; }
+  document.getElementById('breakdown-row').style.display = 'block';
+
+  // recompute cumulative per component (apply position multiplier)
+  const m = state.posMult;
+  const cums = pnlCols.map(() => 0);
+  const traces = pnlCols.map((col, idx) => {
+    let c = 0;
+    return {
+      x: series.map(r => r.Date),
+      y: series.map(r => { c += (r[col] ?? 0) * m; return c; }),
+      type: 'scatter', mode: 'lines',
+      stackgroup: 'one',
+      name: col.replace('_PnL_Rs',''),
+      line: { color: PALETTE[idx % PALETTE.length], width: 1 },
+      fillcolor: PALETTE[idx % PALETTE.length] + '40',
+      hovertemplate: '<b>%{x}</b><br>'+col.replace('_PnL_Rs','')+': ₹%{y:,.0f}<extra></extra>',
+    };
+  });
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, type: 'date' },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: { text: 'Cumulative ₹', font: { size: 11, color: '#7d818c' } } },
+    showlegend: true,
+    legend: { font: { color: '#ece8df' }, bgcolor: 'rgba(20,22,28,0.8)', bordercolor: '#262932', borderwidth: 1, orientation: 'h', y: -0.18 },
+    margin: { ...PLOTLY_LAYOUT.margin, b: 70 },
+  };
+  Plotly.newPlot('chart-breakdown', traces, layout, PLOTLY_CONFIG);
+}
+
+function renderCustomChart(strategy, series) {
+  const numericCols = strategy.rawColumns.filter(c => {
+    if (['Date','Day','Opt_Expiry','Fut_Expiry','Fut_Target_Expiry','Entry_Time','Exit_Time','Is_Roll_Day','Is_Expiry_Day','Is_Entry_Day'].includes(c)) return false;
+    const v = strategy.rawRows[0]?.[c];
+    return typeof v === 'number';
+  });
+
+  const tabs = document.getElementById('custom-tabs');
+  tabs.innerHTML = numericCols.map(c =>
+    `<button class="tab ${c === state.customColumn ? 'active' : ''}" data-col="${c}">${c}</button>`
+  ).join('');
+  tabs.querySelectorAll('.tab').forEach(t => {
+    t.onclick = () => { state.customColumn = t.dataset.col; refreshUI(); };
+  });
+
+  if (!state.customColumn || !numericCols.includes(state.customColumn)) {
+    state.customColumn = numericCols[0];
+    tabs.querySelector('.tab')?.classList.add('active');
+  }
+
+  const col = state.customColumn;
+  const trace = {
+    x: series.map(r => r.Date),
+    y: series.map(r => r[col]),
+    type: 'scatter', mode: 'lines+markers',
+    line: { color: '#c9a063', width: 1.5 },
+    marker: { size: 4, color: '#c9a063' },
+    hovertemplate: '<b>%{x}</b><br>'+col+': %{y:,.2f}<extra></extra>',
+  };
+  const layout = {
+    ...PLOTLY_LAYOUT,
+    xaxis: { ...PLOTLY_LAYOUT.xaxis, type: 'date' },
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: { text: col, font: { size: 11, color: '#7d818c' } } },
+  };
+  Plotly.newPlot('chart-custom', [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderTradeTable(strategy, series) {
+  // Show every original column + computed ones
+  const computed = ['_pnl','_cum','_equity','_dd','_ddPct'];
+  const cols = [...strategy.rawColumns];
+  // append computed labels
+  const computedLabels = {
+    _pnl: 'P&L (scaled)', _cum: 'Cum (scaled)', _equity: 'Equity (scaled)', _dd: 'DD ₹', _ddPct: 'DD %'
+  };
+
+  // sort
+  let rows = [...series];
+  if (state.tradeSort.col) {
+    const c = state.tradeSort.col;
+    rows.sort((a,b) => {
+      const va = a[c], vb = b[c];
+      if (typeof va === 'number' && typeof vb === 'number') return (va-vb) * state.tradeSort.dir;
+      return String(va).localeCompare(String(vb)) * state.tradeSort.dir;
+    });
+  }
+
+  const allCols = [...cols, ...computed];
+  const tbl = document.getElementById('trade-table');
+  tbl.querySelector('thead').innerHTML = '<tr>' + allCols.map(c => {
+    const label = computedLabels[c] || c;
+    const arrow = state.tradeSort.col === c ? (state.tradeSort.dir === 1 ? ' ↑' : ' ↓') : '';
+    return `<th data-col="${c}">${label}${arrow}</th>`;
+  }).join('') + '</tr>';
+
+  tbl.querySelectorAll('thead th').forEach(th => {
+    th.onclick = () => {
+      const c = th.dataset.col;
+      if (state.tradeSort.col === c) state.tradeSort.dir *= -1;
+      else { state.tradeSort.col = c; state.tradeSort.dir = 1; }
+      refreshUI();
+    };
+  });
+
+  tbl.querySelector('tbody').innerHTML = rows.map(r => {
+    return '<tr>' + allCols.map(c => {
+      let v = r[c];
+      let cls = '';
+      if (typeof v === 'number') {
+        if (c === '_pnl' || c === '_cum' || c.endsWith('_PnL_Rs')) {
+          cls = v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+          v = fmtINR(v, {compact: Math.abs(v) >= 1000});
+        } else if (c === '_dd' || c === 'DD_Rs') {
+          if (v < 0) cls = 'neg';
+          v = fmtINR(v, {compact: Math.abs(v) >= 1000});
+        } else if (c === '_ddPct' || c === 'DD_pct') {
+          if (v < 0) cls = 'neg';
+          v = fmtPct(v);
+        } else if (c === '_equity' || c === 'Equity_Rs') {
+          v = fmtINR(v, {compact: true});
+        } else {
+          v = fmtNum(v, Math.abs(v) > 100 ? 1 : 2);
+        }
+      } else if (v === null || v === undefined) {
+        v = '—';
+      } else if (typeof v === 'boolean') {
+        v = v ? '✓' : '';
+      }
+      return `<td class="${cls}">${v}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+
+  document.getElementById('trade-count').textContent = `${rows.length} rows · scroll horizontally for all columns`;
+}
+
+/* ─── main render orchestration ─── */
+function refreshUI() {
+  // sidebar list
+  const list = document.getElementById('strat-list');
+  if (state.strategies.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;padding:0.5rem 0;">No strategies loaded yet.</div>';
+    document.getElementById('empty').classList.remove('hidden');
+    document.getElementById('dash').classList.add('hidden');
+    document.getElementById('mode-sec').classList.add('hidden');
+    document.getElementById('filter-sec').classList.add('hidden');
+    document.getElementById('param-sec').classList.add('hidden');
+    return;
+  }
+
+  list.innerHTML = state.strategies.map(s => `
+    <div class="strat-item ${s.id === state.activeId ? 'active' : ''}" data-id="${s.id}">
+      <div class="strat-dot" style="background:${s.color}"></div>
+      <div class="strat-name">${s.name}</div>
+      <button class="strat-remove" data-id="${s.id}" title="Remove">×</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('.strat-item').forEach(item => {
+    item.onclick = (e) => {
+      if (e.target.classList.contains('strat-remove')) return;
+      state.activeId = item.dataset.id;
+      refreshUI();
+    };
+  });
+  list.querySelectorAll('.strat-remove').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      state.strategies = state.strategies.filter(s => s.id !== btn.dataset.id);
+      if (state.activeId === btn.dataset.id) state.activeId = state.strategies[0]?.id || null;
+      refreshUI();
+    };
+  });
+
+  document.getElementById('empty').classList.add('hidden');
+  document.getElementById('dash').classList.remove('hidden');
+  document.getElementById('mode-sec').classList.remove('hidden');
+  document.getElementById('filter-sec').classList.remove('hidden');
+  document.getElementById('param-sec').classList.remove('hidden');
+
+  // mode buttons disabled if only 1 strategy
+  document.querySelectorAll('.mode-opt').forEach(m => {
+    if (m.dataset.mode !== 'single' && state.strategies.length < 2) {
+      m.style.opacity = '0.4';
+      m.style.pointerEvents = 'none';
+    } else {
+      m.style.opacity = '1';
+      m.style.pointerEvents = 'auto';
+    }
+    m.classList.toggle('active', m.dataset.mode === state.mode);
+  });
+
+  // gather data for current view
+  let seriesList, title, sub, primarySeries, primaryStrat;
+
+  if (state.mode === 'combined' && state.strategies.length > 1) {
+    primarySeries = deriveCombined();
+    seriesList = [{ name: 'Combined Portfolio', color: '#c9a063', series: primarySeries }];
+    title = `Combined <em>Portfolio</em>`;
+    sub = `${state.strategies.length} strategies · summed daily P&L`;
+    primaryStrat = null;
+  } else if (state.mode === 'compare' && state.strategies.length > 1) {
+    seriesList = state.strategies.map(s => ({ name: s.name, color: s.color, series: deriveSeries(s) }));
+    // for metrics, show the active one
+    const active = state.strategies.find(s => s.id === state.activeId) || state.strategies[0];
+    primarySeries = deriveSeries(active);
+    primaryStrat = active;
+    title = `<em>Compare</em> · ${state.strategies.length} strategies`;
+    sub = `metrics shown for active: ${active.name}`;
+  } else {
+    const active = state.strategies.find(s => s.id === state.activeId) || state.strategies[0];
+    primarySeries = deriveSeries(active);
+    primaryStrat = active;
+    seriesList = [{ name: active.name, color: active.color, series: primarySeries }];
+    title = active.name.replace(/_/g,' ').replace(/-/g,' <em>·</em> ');
+    sub = `${primarySeries.length} trading days · ${state.dateFrom} → ${state.dateTo}`;
+  }
+
+  document.getElementById('dash-title').innerHTML = title;
+  document.getElementById('dash-sub').textContent = sub;
+
+  renderMetrics(primarySeries);
+  renderEquity(seriesList);
+  renderDD(seriesList);
+
+  if (state.mode === 'compare' && seriesList.length > 1) {
+    // For daily/hist/heat — show active strategy
+    renderDaily(primarySeries);
+    renderHist(primarySeries);
+    renderHeatmap(primarySeries);
+  } else {
+    renderDaily(primarySeries);
+    renderHist(primarySeries);
+    renderHeatmap(primarySeries);
+  }
+
+  if (primaryStrat) {
+    renderBreakdown(primaryStrat, primarySeries);
+    renderCustomChart(primaryStrat, primarySeries);
+    renderTradeTable(primaryStrat, primarySeries);
+  } else {
+    document.getElementById('breakdown-row').style.display = 'none';
+    // for combined, build a synthetic strategy view for custom chart + table
+    const synth = { rawColumns: ['Date','Total_PnL_Rs'], rawRows: primarySeries };
+    renderCustomChart(synth, primarySeries);
+    renderTradeTable(synth, primarySeries);
+  }
+}
+
+/* ─── event wiring ─── */
+function wireEvents() {
+  const fileInput = document.getElementById('file-input');
+  document.getElementById('upload-btn').onclick = () => fileInput.click();
+  document.getElementById('drop-zone').onclick = () => fileInput.click();
+  fileInput.onchange = (e) => handleFiles(e.target.files);
+
+  // drag & drop
+  const dz = document.getElementById('drop-zone');
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.add('dragover');
+  }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.remove('dragover');
+  }));
+  dz.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+  // mode
+  document.querySelectorAll('.mode-opt').forEach(m => {
+    m.onclick = () => { state.mode = m.dataset.mode; refreshUI(); };
+  });
+
+  // filters
+  document.getElementById('date-from').onchange = e => { state.dateFrom = e.target.value; refreshUI(); };
+  document.getElementById('date-to').onchange = e => { state.dateTo = e.target.value; refreshUI(); };
+  document.querySelectorAll('.quick-dates button').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('.quick-dates button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      const range = b.dataset.range;
+      const allDates = state.strategies.flatMap(s => s.rawRows.map(r => r.Date)).sort();
+      if (!allDates.length) return;
+      const last = allDates[allDates.length-1];
+      const lastD = new Date(last);
+      let from;
+      if (range === 'all') from = allDates[0];
+      else if (range === 'ytd') from = lastD.getFullYear() + '-01-01';
+      else if (range === '3m') { const d = new Date(lastD); d.setMonth(d.getMonth()-3); from = d.toISOString().slice(0,10); }
+      else if (range === '1m') { const d = new Date(lastD); d.setMonth(d.getMonth()-1); from = d.toISOString().slice(0,10); }
+      state.dateFrom = from;
+      state.dateTo = last;
+      document.getElementById('date-from').value = from;
+      document.getElementById('date-to').value = last;
+      refreshUI();
+    };
+  });
+
+  // params
+  const posMult = document.getElementById('pos-mult');
+  posMult.oninput = (e) => {
+    state.posMult = parseFloat(e.target.value);
+    document.getElementById('pos-mult-val').textContent = state.posMult.toFixed(2) + '×';
+    refreshUI();
+  };
+  const cap = document.getElementById('capital');
+  cap.onchange = (e) => {
+    state.capital = Math.max(10000, parseFloat(e.target.value) || 300000);
+    state.capitalOverridden = true;
+    document.getElementById('capital-val').textContent = fmtINR(state.capital);
+    refreshUI();
+  };
+
+  document.getElementById('reset-params').onclick = () => {
+    state.posMult = 1.0;
+    posMult.value = 1.0;
+    document.getElementById('pos-mult-val').textContent = '1.00×';
+    if (state.strategies[0]) {
+      state.capital = Math.round(state.strategies[0].baseCapital);
+      cap.value = state.capital;
+      document.getElementById('capital-val').textContent = fmtINR(state.capital);
+      state.capitalOverridden = false;
+    }
+    refreshUI();
+  };
+
+  // export
+  document.getElementById('export-btn').onclick = () => {
+    if (!state.strategies.length) { toast('Nothing to export.', 'err'); return; }
+    const data = state.strategies.map(s => ({
+      name: s.name,
+      series: deriveSeries(s),
+      metrics: computeMetrics(deriveSeries(s)),
+    }));
+    const blob = new Blob([JSON.stringify({
+      generated_at: new Date().toISOString(),
+      params: { posMult: state.posMult, capital: state.capital, dateFrom: state.dateFrom, dateTo: state.dateTo, mode: state.mode },
+      data
+    }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'strategy_analysis_' + Date.now() + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Exported analysis as JSON.');
+  };
+
+  // initial label values
+  document.getElementById('capital-val').textContent = fmtINR(state.capital);
+}
+
+wireEvents();
+</script>
+</body>
+</html>
